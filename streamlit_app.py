@@ -6,19 +6,19 @@ import openai
 # Set up the page configuration
 st.set_page_config(page_title="Travel Planner Chatbot", layout="wide")
 
-# OpenAI API Key (직접 하드코딩)
-OPENAI_API_KEY = "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"
-
-
-# OpenAI API 키 설정
-openai.api_key = OPENAI_API_KEY
-
 # Title and description
 st.title("🌍 Travel Planner Chatbot")
 st.write(
     "This chatbot helps you plan your trips with personalized itineraries. "
     "Feel free to interact and explore different destinations and durations."
 )
+
+# User API key input
+openai_api_key = st.text_input("OpenAI API Key", type="password")
+if not openai_api_key:
+    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+else:
+    openai.api_key = openai_api_key  # Set the API key
 
 # Initialize session state variables
 if "messages" not in st.session_state:
