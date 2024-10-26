@@ -1,4 +1,4 @@
-# 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
+# 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
 
 import streamlit as st
 import openai
@@ -70,36 +70,7 @@ with col1:
             )
             st.session_state.itinerary_generated = False
 
-    # Chat interface for follow-up questions
-    if prompt := st.chat_input("Ask me anything about your trip!"):
-        if prompt.strip():
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-
-            try:
-                response = openai.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state.messages
-                        if m["content"].strip()
-                    ],
-                )
-
-                response_text = response.choices[0].message.content
-                with st.chat_message("assistant"):
-                    st.markdown(response_text)
-
-                st.session_state.messages.append(
-                    {"role": "assistant", "content": response_text}
-                )
-
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
-
-with col2:
-    # Generate itinerary when both destination and stay duration are selected
+    # Generate itinerary immediately when both destination and duration are provided
     if st.session_state.destination and st.session_state.stay_duration:
         itinerary_request = (
             f"Create a detailed {st.session_state.stay_duration} itinerary for "
@@ -125,7 +96,38 @@ with col2:
             except Exception as e:
                 st.error(f"An error occurred while generating the itinerary: {e}")
 
-    # Display the itinerary in the right column with day-wise buttons
+    # Handle additional input to modify the itinerary
+    if st.session_state.itinerary:
+        if prompt := st.chat_input("Add more details or modify your trip:"):
+            if prompt.strip():
+                st.session_state.messages.append({"role": "user", "content": prompt})
+
+                custom_request = (
+                    f"Create a detailed {st.session_state.stay_duration} itinerary for "
+                    f"a trip to {st.session_state.destination}. Include recommendations for "
+                    f"breakfast, lunch, and dinner for each day."
+                    f"However, if {st.session_state.messages} asks you to change your itinerary or destination to a new one, please modify travel plan accordingly. And the revised travel plan should be made in the format of breakfast, lunch, and dinner for every day."
+                )
+
+                try:
+                    with st.spinner("Updating itinerary..."):
+                        response = openai.chat.completions.create(
+                            model="gpt-3.5-turbo",
+                            messages=[{"role": "user", "content": custom_request}],
+                        )
+
+                        # Update the itinerary with the new response
+                        response_text = response.choices[0].message.content
+                        st.session_state.itinerary = response_text
+                        st.session_state.messages.append(
+                            {"role": "assistant", "content": response_text}
+                        )
+
+                except Exception as e:
+                    st.error(f"An error occurred while updating the itinerary: {e}")
+
+with col2:
+    # Display the itinerary with day-wise buttons
     if st.session_state.itinerary:
         st.subheader("🗺️ Your Travel Itinerary")
 
@@ -133,19 +135,20 @@ with col2:
         itinerary_lines = st.session_state.itinerary.splitlines()
         days = [line for line in itinerary_lines if line.lower().startswith("day")]
 
-        # Create a horizontal row of buttons
-        day_buttons = st.columns(len(days))
+        if days:
+            # Create buttons for each day
+            day_buttons = st.columns(len(days))
 
-        # Iterate over each day and its corresponding button
-        for i, day in enumerate(days):
-            with day_buttons[i]:
-                if st.button(day.strip()):  # Button for each day
-                    # Extract and display the itinerary for the selected day
-                    start_index = itinerary_lines.index(day)
-                    end_index = (
-                        itinerary_lines.index(days[i + 1])
-                        if i + 1 < len(days)
-                        else len(itinerary_lines)
-                    )
-                    day_content = "\n".join(itinerary_lines[start_index:end_index])
-                    st.write(day_content)
+            for i, day in enumerate(days):
+                with day_buttons[i]:
+                    if st.button(day.strip()):  # Button for each day
+                        start_index = itinerary_lines.index(day)
+                        end_index = (
+                            itinerary_lines.index(days[i + 1])
+                            if i + 1 < len(days)
+                            else len(itinerary_lines)
+                        )
+                        day_content = "\n".join(itinerary_lines[start_index:end_index])
+                        st.write(day_content)
+        else:
+            st.write("No days found in the itinerary. Please try again.")
