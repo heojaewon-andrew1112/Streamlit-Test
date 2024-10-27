@@ -1,26 +1,25 @@
-# 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
-
 import streamlit as st
 import openai
+import re
 
-# Set up the page configuration
+# 페이지 설정
 st.set_page_config(page_title="Travel Planner Chatbot", layout="wide")
 
-# Title and description
-st.title("🌍 Travel Planner Chatbot")
+# 제목과 설명
+st.title("🌍 여행 계획 챗봇")
 st.write(
-    "This chatbot helps you plan your trips with personalized itineraries. "
-    "Feel free to interact and explore different destinations and durations."
+    "이 챗봇은 개인 맞춤형 여행 일정을 제공합니다. "
+    "다양한 목적지와 여행 기간을 선택하고 추가 정보를 입력해보세요."
 )
 
-# User API key input
+# OpenAI API 키 입력
 openai_api_key = st.text_input("OpenAI API Key", type="password")
 if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    st.info("OpenAI API 키를 입력해주세요.", icon="🗝️")
 else:
-    openai.api_key = openai_api_key  # Set the API key
+    openai.api_key = openai_api_key  # API 키 설정
 
-# Initialize session state variables
+# 세션 상태 변수 초기화
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "destination" not in st.session_state:
@@ -32,123 +31,181 @@ if "itinerary_generated" not in st.session_state:
 if "itinerary" not in st.session_state:
     st.session_state.itinerary = ""
 
-# Create a two-column layout
+# 두 개의 열로 구성된 레이아웃 생성
 col1, col2 = st.columns([1, 1])
 
 with col1:
-    # Step 1: Select Travel Destination
-    st.subheader("Step 1: Select Your Travel Destination")
-    destination = st.radio(
-        "Choose your destination:",
-        options=[None, "Paris", "Tokyo", "New York"],
-        format_func=lambda x: "Select a destination" if x is None else x,
-    )
 
-    # Update the selected destination in session state
-    if destination and destination != st.session_state.destination:
-        st.session_state.destination = destination
-        st.session_state.messages.append(
-            {"role": "user", "content": f"I am planning a trip to {destination}."}
+    with st.chat_message("assistant"):
+        response = st.markdown(
+            "안녕하세요 여행자님! 여행자님의 계획 생성을 도와줄 리포입니다."
         )
-        st.session_state.itinerary_generated = False
 
-    # Step 2: Select Stay Duration (Only if destination is selected)
+    # 도시 선택 체크박스 UI
+    with st.chat_message("assistant"):
+        st.write("어느 도시를 여행하고 싶으신가요? 아래에서 도시를 선택해주세요.")
+        cities = ["오사카", "파리", "방콕", "뉴욕"]
+
+        for city in cities:
+            if st.checkbox(city, key=f"city_{city}"):
+                st.session_state.destination = city
+
+    # 여행 기간 선택 체크박스 UI
     if st.session_state.destination:
-        st.subheader(
-            f"Step 2: Select the Duration of Your Trip to {st.session_state.destination}"
-        )
-        stay_duration = st.radio(
-            "Choose your stay duration:",
-            options=[None, "1 night 2 days", "2 nights 3 days", "3 nights 4 days"],
-            format_func=lambda x: "Select a duration" if x is None else x,
-        )
+        with st.chat_message("assistant"):
+            st.write("언제 여행을 떠날 예정인가요? 여행 일자를 선택해주세요!")
 
-        if stay_duration and stay_duration != st.session_state.stay_duration:
-            st.session_state.stay_duration = stay_duration
-            st.session_state.messages.append(
-                {"role": "user", "content": f"My trip will last {stay_duration}."}
-            )
-            st.session_state.itinerary_generated = False
+            durations = ["1박 2일", "2박 3일", "3박 4일"]
+            for duration in durations:
+                if st.checkbox(duration, key=f"duration_{duration}"):
+                    st.session_state.stay_duration = duration
 
-    # Generate itinerary immediately when both destination and duration are provided
-    if st.session_state.destination and st.session_state.stay_duration:
-        itinerary_request = (
-            f"Create a detailed {st.session_state.stay_duration} itinerary for "
-            f"a trip to {st.session_state.destination}. Include recommendations for "
-            f"breakfast, lunch, and dinner for each day."
-        )
+            # 여행 계획 생성: 도시와 기간이 선택된 경우
+            if st.session_state.destination and st.session_state.stay_duration:
+                if not st.session_state.itinerary_generated:
+                    try:
+                        with st.spinner("여행 일정을 생성하는 중입니다..."):
+                            itinerary_request = (
+                                f"Create a very detailed {st.session_state.stay_duration} itinerary for a trip to "
+                                f"{st.session_state.destination}. Include recommendations for breakfast, lunch, and dinner for each day. "
+                                f"Please answer with Korean."
+                            )
+                            response = openai.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "user", "content": itinerary_request}
+                                ],
+                            )
+                            st.session_state.itinerary = response.choices[
+                                0
+                            ].message.content
+                            # st.session_state.messages.append(
+                            #     {
+                            #         "role": "assistant",
+                            #         "content": st.session_state.itinerary,
+                            #     }
+                            # )
+                            st.session_state.itinerary_generated = True
+                    except Exception as e:
+                        st.error(f"여행 일정 생성 중 오류가 발생했습니다: {e}")
 
-        if not st.session_state.itinerary_generated:
-            try:
-                with st.spinner("Generating itinerary..."):
-                    response = openai.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=[{"role": "user", "content": itinerary_request}],
-                    )
+    # # Display the existing chat messages via `st.chat_message`.
+    # for message in st.session_state.messages:
+    #     with st.chat_message(message["role"]):
+    #         st.markdown(message["content"])
 
-                    st.session_state.itinerary = response.choices[0].message.content
+    # Create a chat input field to allow the user to enter a message. This will display
+    # automatically at the bottom of the page.
+    # 채팅 입력 처리
 
-                    st.session_state.messages.append(
-                        {"role": "assistant", "content": st.session_state.itinerary}
-                    )
-                    st.session_state.itinerary_generated = True
+    # Display the existing chat messages via `st.chat_message`.
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-            except Exception as e:
-                st.error(f"An error occurred while generating the itinerary: {e}")
+    if prompt := st.chat_input("여행 기간을 입력하거나 질문해보세요."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-    # Handle additional input to modify the itinerary
-    if st.session_state.itinerary:
-        if prompt := st.chat_input("Add more details or modify your trip:"):
-            if prompt.strip():
-                st.session_state.messages.append({"role": "user", "content": prompt})
+        # 정규 표현식으로 'X박 Y일' 패턴 감지
+        match = re.match(r"(\d+)박\s*(\d+)일", prompt)
 
-                custom_request = (
-                    f"Create a detailed {st.session_state.stay_duration} itinerary for "
-                    f"a trip to {st.session_state.destination}. Include recommendations for "
-                    f"breakfast, lunch, and dinner for each day."
-                    f"However, if {st.session_state.messages} asks you to change your itinerary or destination to a new one, please modify travel plan accordingly. And the revised travel plan should be made in the format of breakfast, lunch, and dinner for every day."
+        if match:
+            st.session_state.stay_duration = f"{match.group(1)}박 {match.group(2)}일"
+            # st.session_state.messages.append(
+            #     {
+            #         "role": "user",
+            #         "content": f"여행 기간은 {st.session_state.stay_duration}입니다.",
+            #     }
+            # )
+
+            # 여행 계획 생성 (조건 만족 시에만 생성)
+            if st.session_state.destination and st.session_state.stay_duration:
+                itinerary_request = (
+                    f"Create a detailed {st.session_state.stay_duration} itinerary for a trip to "
+                    f"{st.session_state.destination}. Include recommendations for breakfast, lunch, and dinner for each day. "
+                    f"Please answer with Korean."
                 )
 
-                try:
-                    with st.spinner("Updating itinerary..."):
-                        response = openai.chat.completions.create(
-                            model="gpt-3.5-turbo",
-                            messages=[{"role": "user", "content": custom_request}],
-                        )
+                if not st.session_state.itinerary_generated:
+                    try:
+                        with st.spinner("여행 일정을 생성하는 중입니다..."):
+                            response = openai.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "user", "content": itinerary_request}
+                                ],
+                            )
 
-                        # Update the itinerary with the new response
-                        response_text = response.choices[0].message.content
-                        st.session_state.itinerary = response_text
-                        st.session_state.messages.append(
-                            {"role": "assistant", "content": response_text}
-                        )
+                            st.session_state.itinerary = response.choices[
+                                0
+                            ].message.content
+                            st.session_state.messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": st.session_state.itinerary,
+                                }
+                            )
+                            st.session_state.itinerary_generated = True
 
-                except Exception as e:
-                    st.error(f"An error occurred while updating the itinerary: {e}")
+                    except Exception as e:
+                        st.error(f"여행 일정 생성 중 오류가 발생했습니다: {e}")
+
+        else:
+            # 일반 메시지에 대한 응답 처리
+            stream = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": m["role"], "content": m["content"]}
+                    for m in st.session_state.messages
+                ],
+                stream=True,
+            )
+            with st.chat_message("assistant"):
+                response = st.write_stream(stream)
+            st.session_state.messages.append({"role": "assistant", "content": response})
 
 with col2:
-    # Display the itinerary with day-wise buttons
+    # 일정이 있는 경우에만 표시
     if st.session_state.itinerary:
-        st.subheader("🗺️ Your Travel Itinerary")
+        st.subheader("🗺️ 여행 일정")
 
-        # Split the itinerary by day (assuming each day starts with "Day X")
+        # 일정 텍스트를 줄 단위로 분리
         itinerary_lines = st.session_state.itinerary.splitlines()
-        days = [line for line in itinerary_lines if line.lower().startswith("day")]
+        days = [
+            line
+            for line in itinerary_lines
+            if line.lower().startswith("day") or "일차" in line
+        ]
+
+        # 선택된 day에 맞는 내용을 표시하기 위한 변수
+        selected_day_content = ""
 
         if days:
-            # Create buttons for each day
-            day_buttons = st.columns(len(days))
+            # 버튼들을 가로로 나열하기 위해 열 생성
+            button_columns = st.columns(len(days))  # 일자별로 열 생성
 
+            # 각 버튼을 해당 열에 배치
             for i, day in enumerate(days):
-                with day_buttons[i]:
-                    if st.button(day.strip()):  # Button for each day
+                with button_columns[i]:
+                    if st.button(day.strip(), key=f"button_{i}"):
+                        # 해당 일자에 맞는 일정만 추출하여 표시
                         start_index = itinerary_lines.index(day)
                         end_index = (
                             itinerary_lines.index(days[i + 1])
                             if i + 1 < len(days)
                             else len(itinerary_lines)
                         )
-                        day_content = "\n".join(itinerary_lines[start_index:end_index])
-                        st.write(day_content)
+                        selected_day_content = "\n".join(
+                            itinerary_lines[start_index:end_index]
+                        )
+
+            # 선택된 일자에 해당하는 내용을 col2에 꽉 차게 표시
+            if selected_day_content:
+                st.write("### 선택한 일정")
+                st.markdown(selected_day_content)
+
         else:
-            st.write("No days found in the itinerary. Please try again.")
+            st.write("일정에 표시할 날짜가 없습니다. 전체 일정을 확인하세요:")
+            st.write(st.session_state.itinerary)
